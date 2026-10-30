@@ -1,0 +1,28 @@
+{
+  "name": "adivina-el-pais-mixto",
+  "version": "1.0.0",
+  "description": "Quiz multijugador (estilo Kahoot) sobre Sistema Jurídico Mixto",
+  "main": "server.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/sim.js",
+    "qr": "node scripts/qr.js"
+  },
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.3.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.4"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^24.43.1",
+    "socket.io-client": "^4.8.4"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
