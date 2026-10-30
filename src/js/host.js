@@ -38,6 +38,7 @@
     cancelAnimationFrame(raf);
     const key = s.phase + ':' + s.qn;
     const fresh = key !== lastKey; lastKey = key;
+    if (window.Music) window.Music.phase(s.phase, fresh);
     if (s.phase === 'lobby') lobby(s);
     else if (s.phase === 'intro') intro(s);
     else if (s.phase === 'question') question(s);
@@ -98,6 +99,7 @@
     stage.innerHTML = `<div class="qwrap">
       <div class="qhead"><span class="chip">Pregunta <b>${q.n}</b> / ${q.total}</span><div class="bar"><i id="bar"></i></div><div class="timer" id="tm">${q.duration}</div><span class="chip" id="ans"><b>${s.answered}</b> / ${s.active} respondieron</span></div>
       <div class="qtext card ${isLong(q) ? 'long' : ''}"><div class="kind">${q.kind === 'pais' ? '¿Quién soy?' : 'Concepto'}</div><div>${esc(q.text)}</div></div>
+      ${q.hint ? `<div class="phint" id="ph">💡 Pista: ${esc(q.hint)}</div>` : ''}
       <div class="opts">${q.options.map((_, i) => optHtml(q, i)).join('')}</div>
       <div class="nextbar"><span class="hint">Espacio / Enter: cerrar la pregunta ahora</span><button class="btn ghost" id="skip">Mostrar respuesta</button></div></div>`;
     $('#skip').onclick = () => socket.emit('host:skip');
@@ -105,6 +107,7 @@
       const left = Math.max(0, deadline - performance.now()), tot = q.duration * 1000;
       $('#bar').style.transform = `scaleX(${left / tot})`;
       $('#tm').textContent = Math.ceil(left / 1000);
+      if (q.hint && tot - left >= Math.min(5000, tot * 0.4)) { const h = $('#ph'); if (h) h.classList.add('on'); }
       if (left > 0) raf = requestAnimationFrame(tick);
     };
     tick();

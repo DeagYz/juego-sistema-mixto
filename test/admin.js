@@ -36,14 +36,16 @@ const call = async (p, o = {}, tok) => { const r = await fetch(U + p, { method: 
   await bad((q) => { q[3].text = ''; }, /falta el texto/, 'sin texto');
   await bad((q) => { q[4].duration = 3; }, /5 a 120/, 'tiempo');
   await bad((q) => q.splice(0, 20), /al menos 1/, 'vacía');
-  assert.strictEqual(commits.length, 0, 'nada inválido llegó a GitHub'); console.log('validación OK (8 casos inválidos rechazados, 0 commits)');
+  await bad((q) => { q[5].hint = 'x'.repeat(121); }, /pista pasa de 120/, 'pista larga');
+  assert.strictEqual(g.j.questions.every((x) => x.hint && x.hint.split(' ').length <= 11), true, 'las 20 preguntas traen pista corta');
+  assert.strictEqual(commits.length, 0, 'nada inválido llegó a GitHub'); console.log('validación OK (9 casos inválidos rechazados, 0 commits)');
   // partida en curso con las preguntas originales
   const mkc = () => io(U, { transports: ['websocket'], forceNew: true });
   const host = mkc(); let hs; host.on('state', (s) => (hs = s)); const info = await new Promise((r) => host.emit('host:create', {}, r));
   const pl = mkc(); const jr = await new Promise((r) => pl.emit('player:join', { code: info.code, name: 'Ana', avatar: [1, 1, 1, 1, 0] }, r)); assert(jr.ok);
   host.emit('host:start'); await sleep(500); assert.strictEqual(hs.total, 20);
   // edición mientras hay partida: 2 preguntas, una de 3 opciones y otra de 2
-  const nuevo = [{ kind: 'concepto', duration: 15, text: 'Pregunta nueva A', options: ['uno', 'dos', 'tres'], correct: 2, explanation: 'porque sí' }, { kind: 'pais', duration: 25, text: 'Pregunta nueva B', options: ['sí', 'no'], correct: 0, explanation: '' }];
+  const nuevo = [{ kind: 'concepto', duration: 15, text: 'Pregunta nueva A', options: ['uno', 'dos', 'tres'], correct: 2, explanation: 'porque sí', hint: 'Pista de prueba' }, { kind: 'pais', duration: 25, text: 'Pregunta nueva B', options: ['sí', 'no'], correct: 0, explanation: '' }];
   const sv = await call('/admin/api/questions', { method: 'PUT', body: { questions: nuevo } }, T);
   assert(sv.s === 200 && sv.j.committed === true, 'guardado y commit: ' + JSON.stringify(sv.j));
   assert.strictEqual(commits.length, 1); assert(/\[skip render\]/.test(commits[0].message), 'mensaje con [skip render]'); assert.strictEqual(commits[0].branch, 'master'); assert.strictEqual(commits[0].sha, 'sha0'); assert.strictEqual(tokenSeen, 'Bearer ghp_fake');
@@ -51,7 +53,7 @@ const call = async (p, o = {}, tok) => { const r = await fetch(U + p, { method: 
   assert.strictEqual(hs.total, 20, 'la partida en curso conserva sus 20 preguntas'); console.log('commit a GitHub OK, mensaje:', JSON.stringify(commits[0].message));
   // siguiente partida usa las nuevas (reset + start)
   host.emit('host:reset'); await sleep(300); host.emit('host:start'); await sleep(800);
-  assert.strictEqual(hs.total, 2, 'nueva partida con 2 preguntas'); console.log('partida nueva usa las preguntas editadas (total=' + hs.total + ') y la anterior no se alteró');
+  assert.strictEqual(hs.total, 2, 'nueva partida con 2 preguntas'); while (!hs.question) await sleep(50); assert.strictEqual(hs.question.hint, 'Pista de prueba', 'la pista llega a host/celular'); assert(!('hint' in {}) ); console.log('partida nueva usa las preguntas editadas (total=' + hs.total + ') y la anterior no se alteró');
   // juega la pregunta de 3 opciones: opción 3 (índice 3) debe rechazarse, 2 aceptarse
   while (hs.phase !== 'question') await sleep(100);
   const a3 = await new Promise((r) => pl.emit('player:answer', { c: 3, e: 500 }, r)); assert.strictEqual(a3.ok, 0, 'opción inexistente rechazada');

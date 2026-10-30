@@ -25,6 +25,7 @@
     if (q.options.some(function (o) { return String(o).length > L.opt; })) e.push('Una opción pasa de ' + L.opt + ' caracteres.');
     if (!(q.correct >= 0 && q.correct < q.options.length)) e.push('Marca exactamente una respuesta correcta.');
     var d = +q.duration; if (!(Number.isInteger(d) && d >= 5 && d <= 120)) e.push('El tiempo debe ser de 5 a 120 segundos.');
+    if (String(q.hint || '').length > (L.hint || 120)) e.push('La pista pasa de ' + (L.hint || 120) + ' caracteres.');
     if (String(q.explanation).length > L.expl) e.push('El dato curioso pasa de ' + L.expl + ' caracteres.');
     return e;
   }
@@ -34,7 +35,7 @@
   function markDirty() { S.dirty = snap() !== S.base; S.msg = S.dirty ? 'Cambios sin guardar' : ''; S.msgc = S.dirty ? 'dirty' : ''; }
   function norm(list) {
     return list.map(function (q) {
-      return { kind: q.kind === 'pais' ? 'pais' : 'concepto', duration: parseInt(q.duration, 10) || 20, text: String(q.text == null ? '' : q.text), options: (Array.isArray(q.options) ? q.options : []).slice(0, 4).map(function (o) { return String(o == null ? '' : o); }), correct: parseInt(q.correct, 10), explanation: String(q.explanation == null ? '' : q.explanation) };
+      return { kind: q.kind === 'pais' ? 'pais' : 'concepto', duration: parseInt(q.duration, 10) || 20, text: String(q.text == null ? '' : q.text), options: (Array.isArray(q.options) ? q.options : []).slice(0, 4).map(function (o) { return String(o == null ? '' : o); }), correct: parseInt(q.correct, 10), hint: String(q.hint == null ? '' : q.hint), explanation: String(q.explanation == null ? '' : q.explanation) };
     });
   }
 
@@ -88,6 +89,7 @@
       if (q.options.length < 4) h += '<button class="btn ghost sm" data-addopt>＋ Agregar opción</button>';
       h += '<div class="row2"><div><label class="f">Tiempo (segundos)</label><input type="number" min="5" max="120" step="1" data-f="duration" value="' + esc(q.duration) + '" inputmode="numeric"></div>' +
         '<div><label class="f">Tipo</label><select data-f="kind"><option value="concepto"' + (q.kind === 'concepto' ? ' selected' : '') + '>Concepto</option><option value="pais"' + (q.kind === 'pais' ? ' selected' : '') + '>¿Quién soy? (país)</option></select></div></div>' +
+        '<label class="f">Pista (opcional, corta; aparece a los 5 s sin dar la respuesta)</label><input data-f="hint" maxlength="120" placeholder="Ej.: Piensa en la pirámide normativa" value="' + esc(q.hint || '') + '">' +
         '<label class="f">Dato curioso / explicación (se muestra al revelar)</label><textarea data-f="explanation">' + esc(q.explanation) + '</textarea>';
       if (e.length) h += '<div class="qerr">' + e.map(function (m) { return '<div>' + esc(m) + '</div>'; }).join('') + '</div>';
       h += '<div class="act"><button class="btn sm" data-prev>👁 Vista previa</button><button class="btn danger sm" data-del>🗑 Eliminar</button></div></div>';
@@ -97,12 +99,12 @@
   function previewHtml(q, i) {
     return '<div class="modal" id="pvm"><div class="pv"><div class="meta"><span>Pregunta ' + (i + 1) + ' / ' + S.qs.length + ' · ' + (q.kind === 'pais' ? '¿Quién soy?' : 'Concepto') + '</span><span class="timer">' + esc(q.duration) + '</span></div><div class="q">' + esc(q.text || '(sin texto)') + '</div>' +
       q.options.map(function (o, k) { return '<div class="o c' + k + (k === q.correct ? ' right' : '') + '"><span class="l">' + LT[k] + '</span>' + esc(o || '(vacía)') + (k === q.correct ? ' ✔' : '') + '</div>'; }).join('') +
-      (q.explanation ? '<div class="ex"><b>Dato:</b> ' + esc(q.explanation) + '</div>' : '') + '<div class="cl"><button class="btn sm" id="pvc">Cerrar</button></div></div></div>';
+      (q.hint ? '<div class="ex"><b>💡 Pista:</b> ' + esc(q.hint) + '</div>' : '') + (q.explanation ? '<div class="ex"><b>Dato:</b> ' + esc(q.explanation) + '</div>' : '') + '<div class="cl"><button class="btn sm" id="pvc">Cerrar</button></div></div></div>';
   }
 
   function wire() {
     $('#out').onclick = function () { if (S.dirty && !confirm('Hay cambios sin guardar. ¿Salir de todos modos?')) return; TOKEN = ''; sessionStorage.removeItem('mixto_admin'); loginView(); };
-    $('#add').onclick = function () { S.qs.push({ kind: 'concepto', duration: 20, text: '', options: ['', '', '', ''], correct: -1, explanation: '' }); S.open = S.qs.length - 1; markDirty(); draw(); var el = document.querySelector('.card.open'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+    $('#add').onclick = function () { S.qs.push({ kind: 'concepto', duration: 20, text: '', options: ['', '', '', ''], correct: -1, hint: '', explanation: '' }); S.open = S.qs.length - 1; markDirty(); draw(); var el = document.querySelector('.card.open'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
     $('#exp').onclick = exportJson;
     $('#imp').onclick = function () { $('#file').click(); };
     $('#file').onchange = importJson;
@@ -159,10 +161,10 @@
   function save() {
     if (S.busy || nBad()) return;
     S.busy = true; S.msg = 'Guardando…'; S.msgc = ''; draw();
-    api('/questions', { method: 'PUT', body: { questions: S.qs.map(function (q) { return { kind: q.kind, duration: parseInt(q.duration, 10), text: q.text.trim(), options: q.options.map(function (o) { return o.trim(); }), correct: q.correct, explanation: q.explanation.trim() }; }) } }).then(function (r) {
+    api('/questions', { method: 'PUT', body: { questions: S.qs.map(function (q) { return { kind: q.kind, duration: parseInt(q.duration, 10), text: q.text.trim(), options: q.options.map(function (o) { return o.trim(); }), correct: q.correct, hint: (q.hint || '').trim(), explanation: q.explanation.trim() }; }) } }).then(function (r) {
       S.busy = false;
       if (r.ok) {
-        S.qs = norm(S.qs.map(function (q) { q.text = q.text.trim(); q.options = q.options.map(function (o) { return o.trim(); }); q.explanation = q.explanation.trim(); return q; })); S.base = snap(); S.dirty = false;
+        S.qs = norm(S.qs.map(function (q) { q.text = q.text.trim(); q.options = q.options.map(function (o) { return o.trim(); }); q.explanation = q.explanation.trim(); q.hint = (q.hint || '').trim(); return q; })); S.base = snap(); S.dirty = false;
         S.msg = r.j.committed ? '✔ Guardado en GitHub. Aplica desde la próxima partida.' : '⚠️ ' + (r.j.warning || 'Guardado parcialmente.'); S.msgc = r.j.committed ? 'ok' : 'bad';
       } else { S.msg = (r.j.errors && r.j.errors[0]) || r.j.error || 'No se pudo guardar.'; S.msgc = 'bad'; }
       draw();

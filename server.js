@@ -75,7 +75,7 @@ const row = (p) => [p.id, p.name, p.avatar, p.score, p.rank, p.lastGain || 0, p.
 function publicQuestion(room) {
   const q = room.qs[room.qIndex];
   if (!q) return null;
-  return { n: room.qIndex + 1, total: room.qs.length, kind: q.kind, text: q.text, options: q.options, duration: q.duration };
+  return { n: room.qIndex + 1, total: room.qs.length, kind: q.kind, text: q.text, options: q.options, duration: q.duration, ...(q.hint ? { hint: q.hint } : {}) };
 }
 
 // lite=true: omite la pregunta (el cliente ya la tiene desde la fase "intro"); reduce bytes por mensaje.

@@ -57,3 +57,22 @@ Página protegida con contraseña para ver, editar, agregar, borrar, reordenar (
 Sesión: token firmado de 12 h; 5 contraseñas incorrectas bloquean la IP 5 minutos.
 
 Pruebas: `node test/admin.js` (API con GitHub simulado), `node test/admin-ui.js` (interfaz, Chrome), `node test/opts23.js` (preguntas de 2 y 3 opciones).
+
+## Pistas
+
+Cada pregunta puede llevar un campo opcional `hint` (máx. 120 caracteres, ideal ≤ 10 palabras) que se edita en `/admin`. En la pantalla grande y en el celular aparece como «💡 Pista: …» a los 5 s de iniciada la pregunta (o al 40 % del tiempo si dura menos de 12 s), sin dar la respuesta. Viaja dentro de la pregunta (unos 40 bytes).
+
+## Música (solo pantalla del anfitrión)
+
+- Se activa con el primer clic o tecla en `/host` (regla de autoplay del navegador); hasta entonces se muestra «🎵 Haz clic para activar la música». Los celulares **no** descargan audio.
+- Carga perezosa: primero `lobby` (275 KB) y poco después `tension` (148 KB) y `fanfare` (42 KB), una sola vez (caché inmutable).
+- Botón 🔊/🔇 y control de volumen en la barra superior; tecla **M** para silenciar. La preferencia se guarda en el navegador del anfitrión.
+- Qué suena: sala de espera → bucle `lobby`; durante la pregunta → bucle `tension` (suave); al revelar → `lobby` más bajo; podio → `fanfare` y luego `lobby` bajo.
+
+| Pista | Duración | Origen y licencia |
+|---|---|---|
+| `src/audio/lobby.mp3` | 34 s, mono, 64 kbps | Composición original generada por código (`scripts/make_music.py`, síntesis propia sin muestras). CC0 / dominio público. |
+| `src/audio/tension.mp3` | 18 s, mono, 64 kbps | Ídem. |
+| `src/audio/fanfare.mp3` | 5 s, mono, 64 kbps | Ídem. |
+
+No se usó ninguna música ni muestra de terceros. Para regenerar: `python3 scripts/make_music.py && node scripts/build.js` (requiere numpy, scipy y ffmpeg). Prueba: `node test/music.js`.

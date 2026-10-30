@@ -144,6 +144,7 @@
     app.innerHTML = `${top(s)}<div class="pq"><div class="pqtop"><span class="small">Pregunta ${q.n} / ${q.total}</span><span class="serif" id="tm" style="font-size:26px;color:var(--gold2)">${q.duration}</span></div>
       <div class="pbar"><i id="bar"></i></div>
       <div class="card ptext ${q.text.length > 120 ? 'long' : ''}">${esc(q.text)}</div>
+      ${q.hint ? `<div class="phint" id="ph">💡 Pista: ${esc(q.hint)}</div>` : ''}
       <div class="popts">${q.options.map((o, i) => `<button class="opt ${y.answered ? (y.choice === i ? 'mine' : 'dim') : ''}" data-i="${i}" ${y.answered ? 'disabled' : ''}><span class="ltr">${SHAPE[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>
       ${y.answered ? '<div class="small">✔ Respuesta enviada. Esperando al resto…</div>' : y.late ? '<div class="small">⏱ Tu respuesta llegó tarde.</div>' : ''}</div>`;
     app.querySelectorAll('.opt').forEach((b) => b.onclick = () => {
@@ -158,6 +159,7 @@
       const left = Math.max(0, deadline - performance.now());
       const bar = document.getElementById('bar'), tm = document.getElementById('tm');
       if (!bar) return; bar.style.transform = `scaleX(${left / (q.duration * 1000)})`; tm.textContent = Math.ceil(left / 1000);
+      if (q.hint && q.duration * 1000 - left >= Math.min(5000, q.duration * 400)) { const h = document.getElementById('ph'); if (h) h.classList.add('on'); }
       if (left > 0) raf = requestAnimationFrame(tick);
     };
     tick();

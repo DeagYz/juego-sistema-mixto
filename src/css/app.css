@@ -190,3 +190,6 @@ button{font:inherit;color:inherit;cursor:pointer;border:0}
 .hcredit{margin-top:auto;font-size:clamp(11px,1vw,16px);color:var(--mute);display:flex;align-items:center;gap:.6em}
 .hcredit .iuv{--h:clamp(24px,2.2vw,38px)}
 .mixline{display:inline-flex;align-items:center;gap:.5em}
+
+.phint{min-height:1.4em;margin:8px 2px;font-size:clamp(14px,1.7vw,30px);color:#9fc2ff;opacity:0;transform:translateY(4px);transition:opacity .6s,transform .6s;font-style:italic}.phint.on{opacity:1;transform:none}
+.vol{width:clamp(60px,7vw,120px);accent-color:var(--gold2);cursor:pointer}#mute{cursor:pointer}

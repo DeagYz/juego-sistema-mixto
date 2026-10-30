@@ -7,8 +7,10 @@ const hash = (b) => crypto.createHash('sha1').update(b).digest('hex').slice(0, 8
 const iuv = 'data:image/png;base64,' + fs.readFileSync(path.join(src, 'img', 'iuv.png')).toString('base64');
 const names = {};
 const emit = (name, ext, content) => { const f = `${name}.${hash(content)}.${ext}`; fs.writeFileSync(path.join(out, f), content); names[name + '.' + ext] = '/' + f; };
+const AUDIO = {};
+for (const n of ['lobby', 'tension', 'fanfare']) { const buf = fs.readFileSync(path.join(src, 'audio', n + '.mp3')); const f = `${n}.${hash(buf)}.mp3`; fs.writeFileSync(path.join(out, f), buf); AUDIO[n] = '/' + f; }
 for (const n of ['player', 'host', 'admin']) {
-  const r = esbuild.buildSync({ entryPoints: [path.join(src, n + '.entry.js')], bundle: true, minify: true, format: 'iife', target: ['es2018'], write: false, legalComments: 'none' });
+  const r = esbuild.buildSync({ entryPoints: [path.join(src, n + '.entry.js')], bundle: true, minify: true, format: 'iife', target: ['es2018'], write: false, legalComments: 'none', define: { __AUDIO__: JSON.stringify(AUDIO) } });
   emit(n, 'js', r.outputFiles[0].contents);
 }
 const css = esbuild.transformSync(fs.readFileSync(path.join(src, 'css', 'app.css'), 'utf8').replace('__IUV__', iuv), { loader: 'css', minify: true, target: ['es2018'] }).code;

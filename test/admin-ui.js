@@ -17,6 +17,7 @@ let clk, mclk;
   // editar texto, opciones, correcta
   await p.$eval('[data-f="text"]', (e) => (e.value = '')); await p.type('[data-f="text"]', 'Texto editado de prueba'); await sleep(100);
   assert(!(await p.$eval('#save', (e) => e.disabled)), 'guardar habilitado tras editar');
+  assert.strictEqual(await p.$eval('[data-f="hint"]', (e) => e.value), 'La palabra «mixto» ya habla de combinar.'); await p.$eval('[data-f="hint"]', (e) => (e.value = '')); await p.type('[data-f="hint"]', 'Pista editada'); await sleep(100);
   await clk('[data-c="0"]'); await sleep(100); await clk('[data-rm="0"]'); await sleep(100);
   assert(await p.$eval('#save', (e) => e.disabled), 'sin correcta => no guarda'); assert(await p.$('.qerr'), 'muestra error');
   await clk('[data-c="0"]'); await sleep(100); assert(!(await p.$eval('#save', (e) => e.disabled))); await clk('[data-rm="2"]'); await sleep(100);
@@ -38,6 +39,7 @@ let clk, mclk;
   const exported = await p.evaluate(() => 0);
   await clk('#save'); await sleep(800); const msg = await p.$eval('.savebar .msg', (e) => e.textContent); console.log('mensaje al guardar (sin GitHub):', msg); assert(/GITHUB_TOKEN/.test(msg)); assert(await p.$eval('#save', (e) => e.disabled));
   // reload: persiste en memoria
+  const tk = await p.evaluate(() => sessionStorage.getItem('mixto_admin')); const lst = await (await fetch('http://127.0.0.1:' + PORT + '/admin/api/questions', { headers: { Authorization: 'Bearer ' + tk } })).json(); assert(lst.questions.some((x) => x.hint === 'Pista editada'), 'pista editada guardada'); console.log('pista editada y guardada OK');
   await p.reload(); await p.waitForSelector('.card'); assert.strictEqual((await p.$$eval('.sum b', (a) => a[0].textContent)).length > 0, true);
   const imp = await p.$('#file'); fs.writeFileSync('/tmp/imp.json', JSON.stringify([{ kind: 'concepto', duration: 12, text: 'Importada', options: ['x', 'y', 'z'], correct: 1, explanation: 'e' }])); await imp.uploadFile('/tmp/imp.json'); await sleep(300);
   assert.strictEqual((await p.$$('.card')).length, 1); assert(!(await p.$eval('#save', (e) => e.disabled)), 'importado válido');

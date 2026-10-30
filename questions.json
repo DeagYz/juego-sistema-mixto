@@ -10,6 +10,7 @@
       "Uno en el que no existen tribunales"
     ],
     "correct": 1,
+    "hint": "La palabra «mixto» ya habla de combinar.",
     "explanation": "Lo más común es la mezcla de civil law con common law, aunque también pueden entrar el derecho religioso y el consuetudinario (las costumbres de los pueblos)."
   },
   {
@@ -23,6 +24,7 @@
       "El derecho religioso"
     ],
     "correct": 2,
+    "hint": "México pertenece a esta tradición: la del lado rojo.",
     "explanation": "En el civil law el juez aplica el código. Por eso en el stand es el lado rojo."
   },
   {
@@ -36,6 +38,7 @@
       "El número de abogados presentes"
     ],
     "correct": 0,
+    "hint": "Es el lado azul; piensa en casos anteriores.",
     "explanation": "Lo que ya resolvieron los jueces obliga en casos parecidos. Es el lado azul del stand."
   },
   {
@@ -49,6 +52,7 @@
       "Morado: el sistema mixto"
     ],
     "correct": 3,
+    "hint": "Mezcla de colores: rojo con azul.",
     "explanation": "Rojo + azul = morado. El rojo y el azul se usan solo para «civil» y «common»; el morado es el protagonista."
   },
   {
@@ -62,6 +66,7 @@
       "Tailandia"
     ],
     "correct": 0,
+    "hint": "Tuvo época neerlandesa y luego británica; hay tamiles.",
     "explanation": "Los británicos conservaron el derecho romano-holandés como derecho común del país y respetaron las leyes personales de cada comunidad."
   },
   {
@@ -75,6 +80,7 @@
       "Bután"
     ],
     "correct": 1,
+    "hint": "Tiene dos estados llamados Sabah y Sarawak.",
     "explanation": "La Constitución federal reparte competencias: el derecho islámico de familia corresponde a los estados, y Sabah y Sarawak conservan sus Native Courts."
   },
   {
@@ -88,6 +94,7 @@
       "Sudáfrica"
     ],
     "correct": 3,
+    "hint": "Está en África; mezcla lo romano-holandés con costumbres locales.",
     "explanation": "Mezcla derecho romano-holandés, common law inglés y derecho consuetudinario africano, siempre sujeto a la Constitución."
   },
   {
@@ -101,6 +108,7 @@
       "Brasil"
     ],
     "correct": 2,
+    "hint": "Las leyes personales dependen de la religión de cada quien.",
     "explanation": "Es el ejemplo clásico de common law combinado con derecho religioso en el estatuto personal."
   },
   {
@@ -114,6 +122,7 @@
       "Corea del Sur"
     ],
     "correct": 1,
+    "hint": "Hay tribunales de sharía para su población musulmana.",
     "explanation": "Además, cuenta con un Código de Leyes Personales Musulmanas (1977) y tribunales de la sharía para la población musulmana."
   },
   {
@@ -127,6 +136,7 @@
       "Israel"
     ],
     "correct": 3,
+    "hint": "Piensa en Medio Oriente y el Mandato británico.",
     "explanation": "La Ley de Jurisdicción de los Tribunales Rabínicos (1953) les da competencia exclusiva sobre el matrimonio y el divorcio de los judíos en el país."
   },
   {
@@ -140,6 +150,7 @@
       "India"
     ],
     "correct": 2,
+    "hint": "Piensa en Asia oriental y la era Meiji.",
     "explanation": "Combinó influencias alemana y francesa con elementos propios, y tras la Segunda Guerra Mundial con instituciones angloamericanas."
   },
   {
@@ -153,6 +164,7 @@
       "Inglaterra"
     ],
     "correct": 2,
+    "hint": "Sin código: sus «escritores institucionales» pesan mucho.",
     "explanation": "El Tratado de Unión de 1707 preservó su sistema jurídico propio: es un sistema mixto clásico."
   },
   {
@@ -166,6 +178,7 @@
       "El Tratado de Unión de 1707"
     ],
     "correct": 3,
+    "hint": "Piensa en cómo se unió Escocia al Reino Unido.",
     "explanation": "Escocia es un caso aparte: su sistema se conservó con la unión política de 1707."
   },
   {
@@ -179,6 +192,7 @@
       "Solo derecho consuetudinario"
     ],
     "correct": 0,
+    "hint": "Francia dejó un sistema; Gran Bretaña, otro.",
     "explanation": "Mauricio es, junto con Sudáfrica, Filipinas y Botsuana, un ejemplo de mezcla civil + common en la lista de JuriGlobe."
   },
   {
@@ -192,6 +206,7 @@
       "Colonización neerlandesa"
     ],
     "correct": 1,
+    "hint": "Nadie los obligó: ellos eligieron cambiar.",
     "explanation": "Son países que decidieron modernizarse importando modelos jurídicos europeos."
   },
   {
@@ -205,6 +220,7 @@
       "La Constitución"
     ],
     "correct": 2,
+    "hint": "Las otras dos capas son civil y common.",
     "explanation": "Abajo rojo (civil law), en medio azul (common law) y arriba dorado (religioso/consuetudinario). Las capas no se borran: conviven."
   },
   {
@@ -218,6 +234,7 @@
       "Montesquieu"
     ],
     "correct": 1,
+    "hint": "Piensa en la pirámide normativa.",
     "explanation": "Es la pirámide normativa estilo Kelsen. En México, la Constitución y los derechos humanos de los tratados están en la cúspide (arts. 1 y 133 constitucionales)."
   },
   {
@@ -231,6 +248,7 @@
       "De México"
     ],
     "correct": 1,
+    "hint": "Piensa en el cine y las series de juicios.",
     "explanation": "El mazo es más típico de EE. UU.; en los tribunales ingleses casi no se usa."
   },
   {
@@ -244,6 +262,7 @@
       "Universidad de Ottawa"
     ],
     "correct": 3,
+    "hint": "Está en un país del norte de América.",
     "explanation": "JuriGlobe, de la Universidad de Ottawa, usa un criterio amplio: cuenta también combinaciones con derecho religioso y consuetudinario."
   },
   {
@@ -257,6 +276,7 @@
       "Solo Escocia y Sudáfrica"
     ],
     "correct": 2,
+    "hint": "Desconfía de las cifras exactas.",
     "explanation": "Depende de si se cuenta solo civil + common o también el derecho religioso y consuetudinario, y de si se cuentan Estados o también regiones. Según JuriGlobe, son decenas de países y territorios."
   }
 ]
