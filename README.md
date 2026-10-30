@@ -38,3 +38,22 @@ Colores institucionales del IUV (azul marino `#001433`, azul `#2B6DFF`/`#0047D2`
 Una sola instancia (el estado de las salas vive en memoria).
 
 Editar preguntas: `questions.js` (campos `text`, `options`, `correct` = índice 0‑3, `explanation`, `duration`).
+
+## Panel de administración (`/admin`)
+
+Página protegida con contraseña para ver, editar, agregar, borrar, reordenar (arrastrar ⠿ o botones ▲▼), previsualizar y guardar las preguntas. Valida 2–4 opciones y exactamente una correcta. También exporta/importa JSON como respaldo.
+
+**Variables de entorno (Render → Environment):**
+
+| Variable | Para qué |
+|---|---|
+| `ADMIN_PASSWORD` | Contraseña del panel. Sin ella, `/admin` queda desactivado (503). |
+| `GITHUB_TOKEN` | Token fine-grained con permiso *Contents: Read and write* solo sobre este repo. Sin él, los cambios solo viven en memoria. |
+| `GITHUB_REPO` | `DeagYz/juego-sistema-mixto` (valor por defecto). |
+| `GITHUB_BRANCH` | `master` (valor por defecto, opcional). |
+
+**Cómo se guarda:** el panel hace commit de `questions.json` por la API de contenidos de GitHub con el mensaje `Actualizar preguntas desde /admin [skip render]` (Render no redespliega por ese commit). El servidor lee el archivo de GitHub al arrancar y al iniciar cada partida (caché de ~30 s); si GitHub falla usa la última lista buena o `questions.json` incluido.
+**Las ediciones aplican desde la siguiente partida**; una partida en curso conserva sus preguntas.
+Sesión: token firmado de 12 h; 5 contraseñas incorrectas bloquean la IP 5 minutos.
+
+Pruebas: `node test/admin.js` (API con GitHub simulado), `node test/admin-ui.js` (interfaz, Chrome), `node test/opts23.js` (preguntas de 2 y 3 opciones).

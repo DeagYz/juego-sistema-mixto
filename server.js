@@ -5,7 +5,8 @@ const crypto = require('crypto');
 const express = require('express');
 const QRCode = require('qrcode');
 const { Server } = require('socket.io');
-const QUESTIONS = require('./questions');
+const store = require('./lib/store');
+const admin = require('./lib/admin');
 
 const PORT = process.env.PORT || 3000;
 const INTRO_MS = 3000;          // cuenta previa a cada pregunta
@@ -27,6 +28,8 @@ const io = new Server(server, {
 });
 
 app.set('trust proxy', true);
+admin.mount(app, { store, rooms: () => rooms });
+store.refresh().catch(() => {}); // carga las preguntas de GitHub al arrancar
 app.use(require('./lib/assets')(path.join(__dirname, 'dist')));
 app.get('/healthz', (_, res) => res.json({ ok: true, rooms: rooms.size }));
 app.get('/j/:code', (req, res) => res.redirect('/?c=' + encodeURIComponent(req.params.code)));
@@ -47,7 +50,7 @@ function createRoom() {
     code: newCode(), hostToken: sha(), hostSocket: null,
     phase: 'lobby', qIndex: -1, players: new Map(), answers: new Map(),
     startAt: 0, endsAt: 0, timer: null, lastBoard: new Map(), reveal: null,
-    created: Date.now(), touched: Date.now(),
+    created: Date.now(), touched: Date.now(), qs: store.current(),
   };
   rooms.set(room.code, room);
   return room;
@@ -70,16 +73,16 @@ function ranking(room) {
 const row = (p) => [p.id, p.name, p.avatar, p.score, p.rank, p.lastGain || 0, p.delta || 0]; // fila compacta de ranking
 
 function publicQuestion(room) {
-  const q = QUESTIONS[room.qIndex];
+  const q = room.qs[room.qIndex];
   if (!q) return null;
-  return { n: room.qIndex + 1, total: QUESTIONS.length, kind: q.kind, text: q.text, options: q.options, duration: q.duration };
+  return { n: room.qIndex + 1, total: room.qs.length, kind: q.kind, text: q.text, options: q.options, duration: q.duration };
 }
 
 // lite=true: omite la pregunta (el cliente ya la tiene desde la fase "intro"); reduce bytes por mensaje.
 function snapshot(room, player, lite) {
   const now = Date.now();
   const s = { phase: room.phase, qn: room.qIndex + 1, count: room.players.size };
-  if (!lite) { s.code = room.code; s.total = QUESTIONS.length; }
+  if (!lite) { s.code = room.code; s.total = room.qs.length; }
   const isHost = !player;
   if (room.phase === 'intro' || room.phase === 'question') s.left = Math.max(0, (room.phase === 'intro' ? room.startAt : room.endsAt) - now); // ms restantes (sin depender del reloj del celular)
   if (!lite && (room.phase === 'intro' || room.phase === 'question' || room.phase === 'reveal')) s.question = publicQuestion(room);
@@ -131,7 +134,7 @@ function emitProgress(room) { // se agrupa (máx. 4 por segundo) para no inundar
 function startQuestion(room) {
   clearTimeout(room.timer);
   room.qIndex += 1;
-  if (room.qIndex >= QUESTIONS.length) return finish(room);
+  if (room.qIndex >= room.qs.length) return finish(room);
   room.answers = new Map();
   room.reveal = null;
   for (const p of room.players.values()) { p.lastGain = 0; p.lastCorrect = false; }
@@ -142,7 +145,7 @@ function startQuestion(room) {
   room.timer = setTimeout(() => openQuestion(room), INTRO_MS);
 }
 function openQuestion(room) {
-  const q = QUESTIONS[room.qIndex];
+  const q = room.qs[room.qIndex];
   room.phase = 'question';
   room.startAt = Date.now();
   room.endsAt = room.startAt + q.duration * 1000;
@@ -152,7 +155,7 @@ function openQuestion(room) {
 function closeQuestion(room) {
   if (room.phase !== 'question') return;
   clearTimeout(room.timer);
-  const q = QUESTIONS[room.qIndex];
+  const q = room.qs[room.qIndex];
   const before = ranking(room); // ranking previo
   const prevRank = new Map(before.map((p) => [p.id, p.rank]));
   const counts = [0, 0, 0, 0];
@@ -183,7 +186,7 @@ function finish(room) {
   emitRoom(room);
 }
 function resetRoom(room) {
-  clearTimeout(room.timer);
+  clearTimeout(room.timer); room.qs = store.current();
   room.phase = 'lobby'; room.qIndex = -1; room.answers = new Map(); room.reveal = null;
   for (const p of room.players.values()) Object.assign(p, { score: 0, streak: 0, correctCount: 0, totalTime: 0, lastGain: 0, lastCorrect: false, delta: 0 });
   // quita a los desconectados
@@ -215,7 +218,12 @@ io.on('connection', (socket) => {
     socket.emit('state', snapshot(room, null));
   });
   socket.on('host:sync', (_, ack) => { if (role === 'host' && typeof ack === 'function') ack(snapshot(room, null)); });
-  socket.on('host:start', () => { if (role === 'host' && room.phase === 'lobby' && room.players.size > 0) startQuestion(room); });
+  socket.on('host:start', async () => {
+    if (role !== 'host' || room.phase !== 'lobby' || room.players.size < 1 || room.starting) return;
+    room.starting = true;
+    try { room.qs = await store.refresh(); } finally { room.starting = false; } // preguntas vigentes al iniciar la partida (caché 30 s)
+    if (room.phase === 'lobby' && room.players.size > 0) startQuestion(room);
+  });
   socket.on('host:next', () => {
     if (role !== 'host') return;
     if (room.phase === 'reveal') startQuestion(room);
@@ -269,8 +277,8 @@ io.on('connection', (socket) => {
     const now = Date.now();
     if (now > room.endsAt + GRACE_MS) return done(0);
     const choice = parseInt(data && (data.c !== undefined ? data.c : data.choice), 10);
-    if (!(choice >= 0 && choice < 4)) return done(0);
-    const dur = QUESTIONS[room.qIndex].duration * 1000;
+    if (!(choice >= 0 && choice < room.qs[room.qIndex].options.length)) return done(0);
+    const dur = room.qs[room.qIndex].duration * 1000;
     const srv = Math.max(0, now - room.startAt);
     // Compensación de latencia: se cree al tiempo que reportó el cliente, pero nunca más de LAT_CREDIT_MS menos que el medido por el servidor.
     let e = Number.isFinite(+(data && data.e)) ? +data.e : srv;
