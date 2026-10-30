@@ -10,7 +10,7 @@ const URL_ = process.env.URL || 'http://localhost:3000'; const Q = require('../q
   await sleep(500); await host.screenshot({ path: 'shots/host_lobby.png' }); await host.keyboard.press('Enter');
   for (let q = 0; q < Q.length; q++) {
     for (let t = 0; t < 100 && !(await host.evaluate(() => document.body.innerText)).includes('respondieron'); t++) await sleep(100);
-    cl.forEach((c, i) => setTimeout(() => c.emit('player:answer', { choice: (i * 7 + q) % 5 === 0 ? 0 : Q[q].correct }), 50 + i * 40));
+    cl.forEach((c, i) => setTimeout(() => c.emit('player:answer', { c: (i * 7 + q) % 5 === 0 ? 0 : Q[q].correct, e: 800 + i * 150 }), 50 + i * 40));
     await sleep(1500);
     for (let t = 0; t < 100 && !(await host.evaluate(() => document.body.innerText)).match(/Siguiente pregunta|Ver podio/); t++) await sleep(100);
     if (q === 4) { await sleep(1300); await host.screenshot({ path: 'shots/host_reveal.png' }); }

@@ -3,8 +3,10 @@
   const stage = $('#stage');
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const LET = 'ABCD';
-  const socket = io({ transports: ['websocket', 'polling'] });
-  let info = null, S = null, offset = 0, raf = 0, lastPhase = '', lastKey = '';
+  const CRED = 'Juego creado por el grupo de Derecho 302 E6 · Juan Daniel Chable Ramirez';
+  const socket = window.mkSocket(() => socket.timeout(3000).emit('host:sync', null, (e, st) => { if (e) socket.disconnect().connect(); else onState(st); }));
+  let info = null, S = null, deadline = 0, raf = 0, lastKey = '';
+  const R = (a) => ({ id: a[0], name: a[1], avatar: a[2], score: a[3], rank: a[4], gain: a[5], delta: a[6] });
 
   function create() {
     const saved = JSON.parse(localStorage.getItem('mixto_host') || 'null') || {};
@@ -14,10 +16,16 @@
     });
   }
   socket.on('connect', create);
-  socket.on('state', (s) => { S = s; offset = s.now - Date.now(); render(); });
+  function onState(s) {
+    if (S && S.qn === s.qn && !s.question) s.question = S.question; // mensajes "lite" no repiten la pregunta
+    if (S) { if (!s.total) s.total = S.total; if (!s.code) s.code = S.code; }
+    if (s.left != null) deadline = performance.now() + s.left;
+    S = s; render();
+  }
+  socket.on('state', onState);
   socket.on('progress', (p) => {
-    if (!S) return; S.answered = p.answered; S.active = p.active;
-    const el = $('#ans'); if (el) el.innerHTML = `<b>${p.answered}</b> / ${p.active} respondieron`;
+    if (!S) return; S.answered = p[0]; S.active = p[1];
+    const el = $('#ans'); if (el) el.innerHTML = `<b>${p[0]}</b> / ${p[1]} respondieron`;
   });
 
   const logoSmall = '<span class="mix"><i></i><i></i><b></b></span>';
@@ -50,9 +58,9 @@
           <div class="code" id="bigcode"></div>
         </div>
         <div class="lobbyR">
-          <div class="hero"><h1>Sistema Jurídico <span>Mixto</span></h1><p>Rojo (civil law) + azul (common law) = morado. ¡Elige tu avatar y demuestra cuánto sabes!</p></div>
+          <div class="hero"><i class="iuv"></i><div><h1>Sistema Jurídico <span>Mixto</span></h1><p>Rojo (civil law) + azul (common law) = morado. ¡Elige tu avatar y demuestra cuánto sabes!</p></div></div>
           <div class="players" id="plist"></div>
-          <div class="startbar"><div class="hint">Pasa el mouse sobre un jugador para expulsarlo · Enter para comenzar</div><button class="btn" id="start">Comenzar juego ▶</button></div>
+          <div class="startbar"><div><div class="hcredit">${CRED}</div><div class="hint" style="margin-top:.4em">Pasa el mouse sobre un jugador para expulsarlo · Enter para comenzar</div></div><button class="btn" id="start">Comenzar juego ▶</button></div>
         </div></div>`;
       $('#start').onclick = () => socket.emit('host:start');
     }
@@ -61,13 +69,13 @@
       $('#joinurl').textContent = info.joinUrl.replace(/^https?:\/\//, '').replace(/\?c=.*/, '');
       $('#bigcode').textContent = info.code;
     }
-    const list = s.players || [];
+    const list = (s.players || []).map((a) => ({ id: a[0], name: a[1], avatar: a[2], connected: a[3] }));
     $('#start').disabled = list.length === 0;
     const el = $('#plist'), have = new Map([...el.children].map((c) => [c.dataset.id, c]));
     const ids = new Set(list.map((p) => p.id));
     for (const [id, c] of have) if (!ids.has(id)) c.remove();
     list.forEach((p) => {
-      const sig = JSON.stringify(p.avatar) + p.name + p.connected;
+      const sig = p.avatar.join() + p.name + p.connected;
       let c = have.get(p.id);
       if (!c || c.dataset.sig !== sig) {
         const n = document.createElement('div');
@@ -94,7 +102,7 @@
       <div class="nextbar"><span class="hint">Espacio / Enter: cerrar la pregunta ahora</span><button class="btn ghost" id="skip">Mostrar respuesta</button></div></div>`;
     $('#skip').onclick = () => socket.emit('host:skip');
     const tick = () => {
-      const now = Date.now() + offset, left = Math.max(0, s.endsAt - now), tot = q.duration * 1000;
+      const left = Math.max(0, deadline - performance.now()), tot = q.duration * 1000;
       $('#bar').style.transform = `scaleX(${left / tot})`;
       $('#tm').textContent = Math.ceil(left / 1000);
       if (left > 0) raf = requestAnimationFrame(tick);
@@ -104,7 +112,7 @@
 
   function mv(d) { return d > 0 ? `<span class="mv up">▲${d}</span>` : d < 0 ? `<span class="mv down">▼${-d}</span>` : ''; }
   function boardHtml(list, n) {
-    return list.slice(0, n).map((p, i) => `<div class="lr" style="animation-delay:${i * 60}ms"><span class="rk">${p.rank}</span>${Avatar.html(p.avatar, 40)}<span class="nm">${esc(p.name)}</span><span class="gn">${p.gain ? '+' + p.gain : ''}</span><span class="pt">${p.score}${mv(p.delta)}</span></div>`).join('');
+    return list.slice(0, n).map(R).map((p, i) => `<div class="lr" style="animation-delay:${i * 60}ms"><span class="rk">${p.rank}</span>${Avatar.html(p.avatar, 40)}<span class="nm">${esc(p.name)}</span><span class="gn">${p.gain ? '+' + p.gain : ''}</span><span class="pt">${p.score}${mv(p.delta)}</span></div>`).join('');
   }
 
   function reveal(s) {
@@ -126,17 +134,17 @@
   }
 
   function final(s, fresh) {
-    const b = s.board, top = [b[1], b[0], b[2]];
+    const b = s.board.map(R), top = [b[1], b[0], b[2]];
     const cls = ['p2', 'p1', 'p3'], pos = [2, 1, 3];
-    stage.innerHTML = `<div class="qwrap"><div class="center" style="flex:none"><h1 class="serif" style="font-size:clamp(26px,4vw,64px);margin:0">¡Podio final!</h1><div class="hint">Gracias por jugar «Adivina el país mixto»</div></div>
+    stage.innerHTML = `<div class="qwrap"><div class="center" style="flex:none"><i class="iuv" style="--h:clamp(34px,5vh,60px)"></i><h1 class="serif" style="font-size:clamp(26px,4vw,64px);margin:0">¡Podio final!</h1><div class="hint">Gracias por jugar «Adivina el país mixto»</div></div>
       <div class="podium">${top.map((p, i) => p ? `<div class="pod ${cls[i]}">${pos[i] === 1 ? '<div class="crown">👑</div>' : ''}${Avatar.html(p.avatar, pos[i] === 1 ? 100 : 76)}<div class="nm">${esc(p.name)}</div><div class="sc">${p.score} pts</div><div class="step">${pos[i]}</div></div>` : '').join('')}</div>
-      <div class="rest nogain">${boardHtml(b.slice(3), 200)}</div>
-      <div class="nextbar"><span class="hint">Todos pueden ver su lugar final en su celular.</span><button class="btn purple" id="again">Nueva partida (mismos jugadores)</button></div></div>`;
+      <div class="rest nogain">${boardHtml(s.board.slice(3), 200)}</div>
+      <div class="nextbar"><span class="hcredit"><span>${CRED}<br><span class="hint">Todos pueden ver su lugar final en su celular.</span></span></span><button class="btn purple" id="again">Nueva partida (mismos jugadores)</button></div></div>`;
     $('#again').onclick = () => socket.emit('host:reset');
     if (fresh) confetti();
   }
   function confetti() {
-    const cols = ['#C9A227', '#6A3D9A', '#e6c65a', '#8a5cb8', '#f4f1ea'];
+    const cols = ['#2B6DFF', '#58CDD4', '#6FB0FF', '#ECF2FF', '#C9A227'];
     for (let i = 0; i < 70; i++) {
       const d = document.createElement('i'); d.className = 'conf';
       d.style.left = Math.random() * 100 + 'vw'; d.style.background = cols[i % cols.length];

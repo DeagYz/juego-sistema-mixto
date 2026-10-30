@@ -2,5 +2,5 @@
 const QRCode = require('qrcode');
 const url = process.argv[2];
 if (!url) { console.error('Falta la URL: npm run qr -- https://tu-sitio'); process.exit(1); }
-QRCode.toFile(require('path').join(__dirname, '..', 'qr.png'), url, { width: 1024, margin: 3, errorCorrectionLevel: 'H', color: { dark: '#14213D', light: '#FFFFFF' } })
+QRCode.toFile(require('path').join(__dirname, '..', 'qr.png'), url, { width: 1024, margin: 3, errorCorrectionLevel: 'H', color: { dark: '#001433', light: '#FFFFFF' } })
   .then(() => console.log('qr.png generado para', url));

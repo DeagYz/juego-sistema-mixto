@@ -9,19 +9,26 @@ const QUESTIONS = require('./questions');
 
 const PORT = process.env.PORT || 3000;
 const INTRO_MS = 3000;          // cuenta previa a cada pregunta
-const GRACE_MS = 600;           // margen por latencia al cerrar la pregunta
+const GRACE_MS = 1200;          // margen por latencia: se aceptan respuestas hasta 1.2 s después del cierre
+const LAT_CREDIT_MS = 1500;     // máximo de latencia que se le perdona a un jugador al puntuar
+const DC_GRACE_MS = 8000;       // un jugador desconectado < 8 s aún cuenta como activo (wifi inestable)
 const MAX_PLAYERS = 200;
 const ROOM_TTL_MS = 8 * 3600 * 1000;
 const BASE_POINTS = 600, SPEED_POINTS = 400; // acierto = 600 + hasta 400 por rapidez
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000, maxHttpBufferSize: 1e5 });
+const io = new Server(server, {
+  pingInterval: 10000, pingTimeout: 20000, maxHttpBufferSize: 1e4,
+  transports: ['websocket', 'polling'],
+  perMessageDeflate: { threshold: 400, zlibDeflateOptions: { level: 1, memLevel: 7 }, serverNoContextTakeover: true },
+  httpCompression: { threshold: 400 },
+  serveClient: false, // el cliente socket.io va dentro de nuestro bundle
+});
 
 app.set('trust proxy', true);
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '5m' }));
+app.use(require('./lib/assets')(path.join(__dirname, 'dist')));
 app.get('/healthz', (_, res) => res.json({ ok: true, rooms: rooms.size }));
-app.get('/host', (_, res) => res.sendFile(path.join(__dirname, 'public', 'host.html')));
 app.get('/j/:code', (req, res) => res.redirect('/?c=' + encodeURIComponent(req.params.code)));
 
 const rooms = new Map();
@@ -50,7 +57,8 @@ const cleanName = (s) => String(s || '').replace(/[\u0000-\u001f<>]/g, '').repla
 function cleanAvatar(a) {
   a = a || {};
   const int = (v, max) => { v = parseInt(v, 10); return Number.isFinite(v) && v >= 0 && v < max ? v : 0; };
-  return { animal: int(a.animal, 16), color: int(a.color, 8), hat: int(a.hat, 5), body: int(a.body, 3), glasses: a.glasses ? 1 : 0 };
+  if (Array.isArray(a)) a = { animal: a[0], color: a[1], hat: a[2], body: a[3], glasses: a[4] };
+  return [int(a.animal, 16), int(a.color, 8), int(a.hat, 5), int(a.body, 3), a.glasses ? 1 : 0]; // [animal,color,sombrero,traje,lentes]
 }
 
 function ranking(room) {
@@ -59,7 +67,7 @@ function ranking(room) {
   arr.forEach((p, i) => { p.rank = i + 1; });
   return arr;
 }
-const row = (p) => ({ id: p.id, name: p.name, avatar: p.avatar, score: p.score, rank: p.rank, gain: p.lastGain || 0, delta: p.delta || 0, streak: p.streak, connected: p.connected });
+const row = (p) => [p.id, p.name, p.avatar, p.score, p.rank, p.lastGain || 0, p.delta || 0]; // fila compacta de ranking
 
 function publicQuestion(room) {
   const q = QUESTIONS[room.qIndex];
@@ -67,49 +75,41 @@ function publicQuestion(room) {
   return { n: room.qIndex + 1, total: QUESTIONS.length, kind: q.kind, text: q.text, options: q.options, duration: q.duration };
 }
 
-function snapshot(room, player) {
-  const s = {
-    phase: room.phase, code: room.code, total: QUESTIONS.length, now: Date.now(),
-    count: room.players.size, qn: room.qIndex + 1,
-  };
+// lite=true: omite la pregunta (el cliente ya la tiene desde la fase "intro"); reduce bytes por mensaje.
+function snapshot(room, player, lite) {
+  const now = Date.now();
+  const s = { phase: room.phase, qn: room.qIndex + 1, count: room.players.size };
+  if (!lite) { s.code = room.code; s.total = QUESTIONS.length; }
   const isHost = !player;
-  if (room.phase === 'intro' || room.phase === 'question' || room.phase === 'reveal') {
-    s.question = publicQuestion(room);
-    s.endsAt = room.endsAt; s.startAt = room.startAt;
-  }
-  if (room.phase === 'question' || room.phase === 'intro') {
-    s.answered = room.answers.size;
-    s.active = activeCount(room);
-  }
+  if (room.phase === 'intro' || room.phase === 'question') s.left = Math.max(0, (room.phase === 'intro' ? room.startAt : room.endsAt) - now); // ms restantes (sin depender del reloj del celular)
+  if (!lite && (room.phase === 'intro' || room.phase === 'question' || room.phase === 'reveal')) s.question = publicQuestion(room);
+  if (room.phase === 'question' || room.phase === 'intro') { s.answered = room.answers.size; s.active = activeCount(room); }
   if (room.phase === 'reveal') {
     s.reveal = room.reveal;
-    const board = ranking(room);
-    s.board = board.slice(0, isHost ? 10 : 5).map(row);
+    s.board = ranking(room).slice(0, isHost ? 10 : 5).map(row);
   }
-  if (room.phase === 'final') {
-    const board = ranking(room);
-    s.board = board.slice(0, isHost ? 200 : 10).map(row);
-  }
+  if (room.phase === 'final') s.board = ranking(room).slice(0, isHost ? 200 : 10).map(row);
   if (isHost) {
-    if (room.phase === 'lobby') s.players = [...room.players.values()].map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, connected: p.connected }));
+    if (room.phase === 'lobby') s.players = [...room.players.values()].map((p) => [p.id, p.name, p.avatar, p.connected ? 1 : 0]);
   } else {
     const p = player;
     ranking(room);
-    s.you = { id: p.id, name: p.name, avatar: p.avatar, score: p.score, rank: p.rank, streak: p.streak, gain: p.lastGain || 0, delta: p.delta || 0, total: room.players.size };
+    const y = { score: p.score, rank: p.rank, streak: p.streak, gain: p.lastGain || 0, delta: p.delta || 0 };
     const a = room.answers.get(p.id);
-    s.you.answered = !!a; s.you.choice = a ? a.choice : null;
-    if (room.phase === 'reveal') { s.you.correct = !!p.lastCorrect; s.you.answeredThis = !!a; }
-    if (room.phase === 'final') s.you.correctCount = p.correctCount;
+    if (a) { y.answered = 1; y.choice = a.choice; }
+    if (room.phase === 'reveal') { y.correct = p.lastCorrect ? 1 : 0; y.answeredThis = a ? 1 : 0; }
+    if (room.phase === 'final') y.correctCount = p.correctCount;
+    s.you = y;
   }
   return s;
 }
 
-const activeCount = (room) => [...room.players.values()].filter((p) => p.connected).length;
+const activeCount = (room) => { const t = Date.now(); return [...room.players.values()].filter((p) => p.connected || (p.dcAt && t - p.dcAt < DC_GRACE_MS)).length; };
 
-function emitRoom(room) {
+function emitRoom(room, lite) {
   room.touched = Date.now();
-  if (room.hostSocket) io.to(room.hostSocket).emit('state', snapshot(room, null));
-  for (const p of room.players.values()) if (p.socket) io.to(p.socket).emit('state', snapshot(room, p));
+  if (room.hostSocket) io.to(room.hostSocket).emit('state', snapshot(room, null, lite));
+  for (const p of room.players.values()) if (p.socket) io.to(p.socket).emit('state', snapshot(room, p, lite));
 }
 let pending = new Map();
 function emitLobbySoon(room) { // junta cambios del lobby (muchos jugadores entrando a la vez)
@@ -117,10 +117,15 @@ function emitLobbySoon(room) { // junta cambios del lobby (muchos jugadores entr
   pending.set(room.code, setTimeout(() => {
     pending.delete(room.code);
     if (room.phase === 'lobby') emitRoom(room);
-  }, 150));
+  }, 300));
 }
-function emitProgress(room) {
-  if (room.hostSocket) io.to(room.hostSocket).emit('progress', { answered: room.answers.size, active: activeCount(room) });
+let progTimers = new Map();
+function emitProgress(room) { // se agrupa (máx. 4 por segundo) para no inundar al anfitrión cuando 60 contestan a la vez
+  if (progTimers.has(room.code)) return;
+  progTimers.set(room.code, setTimeout(() => {
+    progTimers.delete(room.code);
+    if (room.hostSocket && room.phase === 'question') io.to(room.hostSocket).emit('progress', [room.answers.size, activeCount(room)]);
+  }, 250));
 }
 
 function startQuestion(room) {
@@ -141,7 +146,7 @@ function openQuestion(room) {
   room.phase = 'question';
   room.startAt = Date.now();
   room.endsAt = room.startAt + q.duration * 1000;
-  emitRoom(room);
+  emitRoom(room, true);
   room.timer = setTimeout(() => closeQuestion(room), q.duration * 1000 + GRACE_MS);
 }
 function closeQuestion(room) {
@@ -169,7 +174,7 @@ function closeQuestion(room) {
   room.reveal = { correct: q.correct, counts, explanation: q.explanation, answered: room.answers.size, correctCount: after.filter((p) => p.lastCorrect).length };
   room.phase = 'reveal';
   room.endsAt = 0;
-  emitRoom(room);
+  emitRoom(room, true);
 }
 function finish(room) {
   clearTimeout(room.timer);
@@ -205,10 +210,11 @@ io.on('connection', (socket) => {
     room = r; role = 'host'; room.hostSocket = socket.id; room.touched = Date.now();
     const base = publicBase(socket);
     const joinUrl = `${base}/?c=${room.code}`;
-    const qr = await QRCode.toString(joinUrl, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#14213D', light: '#ffffff' } });
+    const qr = await QRCode.toString(joinUrl, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#001433', light: '#ffffff' } });
     ack({ code: room.code, token: room.hostToken, joinUrl, base, qr });
     socket.emit('state', snapshot(room, null));
   });
+  socket.on('host:sync', (_, ack) => { if (role === 'host' && typeof ack === 'function') ack(snapshot(room, null)); });
   socket.on('host:start', () => { if (role === 'host' && room.phase === 'lobby' && room.players.size > 0) startQuestion(room); });
   socket.on('host:next', () => {
     if (role !== 'host') return;
@@ -239,13 +245,13 @@ io.on('connection', (socket) => {
       let final = name, i = 2;
       const taken = (n) => [...r.players.values()].some((x) => x.name.toLowerCase() === n.toLowerCase());
       while (taken(final)) final = name.slice(0, 12) + ' ' + i++;
-      p = { id: sha().slice(0, 8), token: sha(), name: final, avatar: cleanAvatar(data.avatar), score: 0, streak: 0, correctCount: 0, totalTime: 0, joined: Date.now(), lastGain: 0, delta: 0, rank: 0, connected: true, socket: socket.id };
+      p = { id: sha().slice(0, 6), token: sha(), name: final, avatar: cleanAvatar(data.avatar), score: 0, streak: 0, correctCount: 0, totalTime: 0, joined: Date.now(), lastGain: 0, delta: 0, rank: 0, connected: true, socket: socket.id };
       r.players.set(p.id, p);
     } else {
-      p.connected = true; p.socket = socket.id;
+      p.connected = true; p.socket = socket.id; p.dcAt = 0;
     }
     role = 'player'; room = r; player = p; r.touched = Date.now();
-    ack({ ok: true, token: p.token, id: p.id, code: r.code });
+    ack({ ok: true, token: p.token, id: p.id, code: r.code, name: p.name, avatar: p.avatar });
     socket.emit('state', snapshot(r, p));
     if (r.phase === 'lobby') emitLobbySoon(r); else emitProgress(r);
   });
@@ -253,16 +259,24 @@ io.on('connection', (socket) => {
     if (role !== 'player' || !player) return;
     if (data && data.avatar) player.avatar = cleanAvatar(data.avatar);
     if (room.phase === 'lobby') emitLobbySoon(room);
-    socket.emit('state', snapshot(room, player));
   });
-  socket.on('player:answer', (data) => {
-    if (role !== 'player' || !player || room.phase !== 'question') return;
+  socket.on('player:sync', (_, ack) => { if (role === 'player' && player && typeof ack === 'function') ack(snapshot(room, player)); });
+  // data: {c: opción 0-3, e: ms que el jugador vio transcurrir en su pantalla}. Responde con ack {ok}. Idempotente.
+  socket.on('player:answer', (data, ack) => {
+    const done = (ok) => typeof ack === 'function' && ack({ ok });
+    if (role !== 'player' || !player || room.phase !== 'question') return done(room && room.answers && room.answers.has(player && player.id) ? 1 : 0);
+    if (room.answers.has(player.id)) return done(1);
     const now = Date.now();
-    if (now > room.endsAt + GRACE_MS || room.answers.has(player.id)) return;
-    const choice = parseInt(data && data.choice, 10);
-    if (!(choice >= 0 && choice < 4)) return;
-    room.answers.set(player.id, { choice, elapsed: Math.max(0, now - room.startAt) });
-    socket.emit('state', snapshot(room, player));
+    if (now > room.endsAt + GRACE_MS) return done(0);
+    const choice = parseInt(data && (data.c !== undefined ? data.c : data.choice), 10);
+    if (!(choice >= 0 && choice < 4)) return done(0);
+    const dur = QUESTIONS[room.qIndex].duration * 1000;
+    const srv = Math.max(0, now - room.startAt);
+    // Compensación de latencia: se cree al tiempo que reportó el cliente, pero nunca más de LAT_CREDIT_MS menos que el medido por el servidor.
+    let e = Number.isFinite(+(data && data.e)) ? +data.e : srv;
+    e = Math.min(Math.max(e, srv - LAT_CREDIT_MS), srv);
+    room.answers.set(player.id, { choice, elapsed: Math.min(dur, Math.max(0, e)) });
+    done(1);
     emitProgress(room);
     if (room.answers.size >= activeCount(room)) closeQuestion(room);
   });
@@ -271,9 +285,13 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (role === 'host' && room.hostSocket === socket.id) room.hostSocket = null;
     if (role === 'player' && player && player.socket === socket.id) {
-      player.connected = false; player.socket = null;
+      player.connected = false; player.socket = null; player.dcAt = Date.now();
       if (room.phase === 'lobby') emitLobbySoon(room);
-      else if (room.phase === 'question') { emitProgress(room); if (room.answers.size >= activeCount(room) && activeCount(room) > 0) closeQuestion(room); }
+      else if (room.phase === 'question') {
+        emitProgress(room);
+        const pr = room; // al vencer la gracia de reconexión, revisa si ya contestaron todos los activos
+        setTimeout(() => { if (pr.phase === 'question' && pr.answers.size >= activeCount(pr) && activeCount(pr) > 0) closeQuestion(pr); }, DC_GRACE_MS + 50);
+      }
     }
   });
 });

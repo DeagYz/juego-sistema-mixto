@@ -26,9 +26,9 @@ const NAMES = ['Valeria', 'Dani', 'Lic. Morado', 'Sofi', 'Memo', 'Toga Loca', 'K
   for (let q = 0; q < Q.length; q++) {
     await hostWait((t) => t.includes('respondieron'));
     await sleep(1500);
-    await Promise.all(clients.map(async (o) => { await sleep(q < 4 ? 300 + o.i * 400 : 100 + o.i * 30); const good = (o.i * 7 + q) % 4 !== 0; o.c.emit('player:answer', { choice: good ? Q[q].correct : (Q[q].correct + 1 + o.i % 3) % 4 }); }));
+    await Promise.all(clients.map(async (o) => { await sleep(q < 4 ? 300 + o.i * 400 : 100 + o.i * 30); const good = (o.i * 7 + q) % 4 !== 0; o.c.emit('player:answer', { c: good ? Q[q].correct : (Q[q].correct + 1 + o.i % 3) % 4, e: 1200 + o.i * 250 }); }));
     if (q === 0) { await ph.screenshot({ path: 'shots/phone_question.png' }); }
-    if (q === 3) { await host.screenshot({ path: 'shots/host_question.png' }); }
+    if (q === 3) { await ph.click('.opt[data-i="3"]').catch(() => {}); await sleep(300); await host.screenshot({ path: 'shots/host_question.png' }); }
     if (q >= 4) { await sleep(600); await host.keyboard.press('Enter'); }
     await hostWait((t) => t.includes('Siguiente pregunta') || t.includes('Ver podio'));
     await sleep(1400);

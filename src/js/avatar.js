@@ -1,7 +1,7 @@
 // Avatares: animal (emoji) + color + sombrero + cuerpo + lentes. Se dibujan igual en el anfitrión y en los celulares.
 (function (root) {
   const ANIMALS = ['🦊', '🐼', '🦁', '🐯', '🐸', '🐵', '🦉', '🐙', '🦄', '🐧', '🐨', '🐰', '🐶', '🐱', '🦅', '🐢'];
-  const COLORS = ['#6A3D9A', '#C9A227', '#2F7F78', '#B45F7F', '#D9893B', '#5C6F9A', '#7FA37A', '#8A6E5A'];
+  const COLORS = ['#2B6DFF', '#58CDD4', '#5337ff', '#B45F7F', '#D9893B', '#5C6F9A', '#7FA37A', '#C9A227'];
   const HATS = [
     { name: 'Sin sombrero', svg: '' },
     { name: 'Birrete', svg: '<polygon points="50,3 94,19 50,35 6,19" fill="#1a1a24"/><path d="M27 27v13q23 12 46 0V27q-23 10-46 0z" fill="#262633"/><path d="M86 20v20" stroke="#C9A227" stroke-width="3"/><circle cx="86" cy="42" r="4" fill="#C9A227"/>' },
@@ -17,13 +17,13 @@
   const GLASSES = '<g fill="rgba(255,255,255,.22)" stroke="#14213D" stroke-width="3"><circle cx="35" cy="50" r="11"/><circle cx="65" cy="50" r="11"/></g><path d="M46 50h8" stroke="#14213D" stroke-width="3"/>';
 
   function html(av, size) {
-    av = av || {};
+    av = av || [];  // [animal, color, sombrero, traje, lentes]
     size = size || 56;
-    const a = ANIMALS[av.animal | 0] || ANIMALS[0];
-    const c = COLORS[av.color | 0] || COLORS[0];
-    const hat = (HATS[av.hat | 0] || HATS[0]).svg;
-    const body = (BODIES[av.body | 0] || BODIES[0]).svg;
-    const gl = av.glasses ? GLASSES : '';
+    const a = ANIMALS[av[0] | 0] || ANIMALS[0];
+    const c = COLORS[av[1] | 0] || COLORS[0];
+    const hat = (HATS[av[2] | 0] || HATS[0]).svg;
+    const body = (BODIES[av[3] | 0] || BODIES[0]).svg;
+    const gl = av[4] ? GLASSES : '';
     return `<span class="av" style="--s:${size}px"><span class="av-bg" style="background:radial-gradient(circle at 30% 25%,${c}ee,${c})"></span><span class="av-emoji">${a}</span><svg class="av-acc" viewBox="0 0 100 100" aria-hidden="true">${gl}${body}${hat}</svg></span>`;
   }
   root.Avatar = { ANIMALS, COLORS, HATS, BODIES, html };
